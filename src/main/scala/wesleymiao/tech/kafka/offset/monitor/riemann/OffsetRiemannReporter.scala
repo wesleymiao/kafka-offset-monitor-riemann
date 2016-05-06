@@ -8,12 +8,15 @@ class OffsetRiemannReporter (pluginsArgs: String) extends com.quantifind.kafka.o
 
 
   override def report(info: scala.IndexedSeq[OffsetInfo]) =  {
-    info.foreach(i => {
-//      val values: GaugesValues = gauges.get(getMetricName(i))
-//      values.logSize = i.logSize
-//      values.offset = i.offset
-//      values.lag = i.lag
-    })
+    // translate to Riemann Event format
+    type RIEMANNEVENT = (String /*host*/, String /*service*/, Option[Long] /*metric*/, Seq[String] /*tags*/, Option[String] /*state*/, Option[String] /*description*/)
+    val events = info.flatMap { i => Seq[RIEMANNEVENT](
+      (getMetricName(i), "logSize", Some(i.logSize), Seq(), Some("ok"), None),
+      (getMetricName(i), "offset", Some(i.offset), Seq(), Some("ok"), None),
+      (getMetricName(i), "lag", Some(i.lag), Seq(), if (i.lag > 0) Some("critical") else Some("ok"), None)
+    )}
+
+    RiemannConnection.send(RiemannReporterArguments.riemannHost, RiemannReporterArguments.riemannPort, events.toIterator)
   }
 
   def getMetricName(offsetInfo: OffsetInfo): String = {
